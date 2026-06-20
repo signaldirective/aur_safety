@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+import argparse
+import subprocess
+import sys
+from pathlib import Path
+
+CONFIG_DIR = Path.home() / ".config" / "aur_safety"
+
+LIST_FILES = [
+    "package_list.txt",
+    "chaos_rat_packages.txt",
+    "malicious_npm_packages.txt",
+    "malicious_russian_spam_packages.txt",
+]
+
+
+def load_bad_packages():
+    bad = set()
+    for fname in LIST_FILES:
+        p = CONFIG_DIR / fname
+        if p.exists():
+            with open(p) as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#"):
+                        bad.add(line)
+    return bad
+
+
+def strip_aur_prefix(name):
+    if name.startswith("aur/"):
+        return name[4:]
+    return name
+
+
+RED = "\033[91m"
+GREEN = "\033[92m"
+RESET = "\033[0m"
+
+
+def cmd_find(args, bad_packages):
+    search_args = ["yay", "-Ss"] + args.query
+    proc = subprocess.Popen(search_args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
+    for line in proc.stdout:
+        stripped = line.rstrip("\n")
+        if stripped.startswith("aur/"):
+            pkgname = strip_aur_prefix(stripped.split()[0])
+            unsafe = pkgname in bad_packages
+            color = RED if unsafe else GREEN
+            tag = "unsafe" if unsafe else "safe"
+            print(f"{stripped} ({color}{tag}{RESET})")
+        else:
+            print(stripped)
+
+    proc.wait()
+    sys.exit(proc.returncode)
+
+
+def cmd_install(args, bad_packages):
+    for pkg in args.packages:
+        if pkg in bad_packages:
+            print(
+                f"Package {pkg} is on a list of suspected packages that may be "
+                f"infected with malware. Are you sure you wish to install this package? y/N",
+                end=" ",
+            )
+            sys.stdout.flush()
+            try:
+                resp = input().strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                resp = "n"
+            if resp != "y":
+                print("Cancelled.")
+                sys.exit(1)
+
+    cmd = ["yay", "-S"] + args.packages + args.pass_args
+    subprocess.execvp("yay", cmd)
+
+
+def main():
+    bad_packages = load_bad_packages()
+
+    parser = argparse.ArgumentParser(
+        description="yay wrapper that checks packages against known AUR malware lists"
+    )
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    find_p = sub.add_parser("find", help="Search AUR (yay -Ss) with safety annotations")
+    find_p.add_argument("query", nargs=argparse.REMAINDER, help="Search terms")
+    find_p.set_defaults(func=cmd_find)
+
+    install_p = sub.add_parser("install", help="Install AUR packages with safety check")
+    install_p.add_argument("packages", nargs="+", help="Package name(s) to install")
+    install_p.add_argument("pass_args", nargs=argparse.REMAINDER, help="Extra args passed to yay -S")
+    install_p.set_defaults(func=cmd_install)
+
+    parsed = parser.parse_args()
+    parsed.func(parsed, bad_packages)
+
+
+if __name__ == "__main__":
+    main()
