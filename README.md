@@ -8,6 +8,7 @@ It checks every package against multiple curated blocklists sourced from the Jun
 
 - **`aur_safety find <search>`** — runs `yay -Ss` and annotates each result with a green `(safe)` or red `(unsafe)` tag
 - **`aur_safety install <package>`** — runs `yay -S` but warns and prompts for confirmation before installing any package on the blocklist (default answer is no)
+- **`aur_safety update-lists`** — checks all package lists against the latest versions on GitHub and downloads any updates
 
 ## Install
 
