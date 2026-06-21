@@ -1,5 +1,7 @@
 # aur_safety
 
+[![aur_safety demo](https://img.youtube.com/vi/15DIgdqSpFM/maxresdefault.jpg)](https://youtu.be/15DIgdqSpFM)
+
 **aur_safety** is a drop-in wrapper for `yay` that annotates search results and blocks dangerous installs by cross-referencing known-compromised AUR packages.
 
 It checks every package against multiple curated blocklists sourced from the June 2026 `atomic-lockfile`/`js-digest` supply-chain attack, the 2025 CHAOS RAT campaign, the Russian spam injection campaign, and associated malicious npm dependencies.
