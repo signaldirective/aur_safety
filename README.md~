@@ -13,7 +13,7 @@ It checks every package against multiple curated blocklists sourced from the Jun
 ## Install
 
 ```bash
-git clone https://github.com/signaldirective/aur_safety.git
+git clone https://github.com/your-username/aur_safety.git
 cd aur_safety
 ./install.sh
 ```
