@@ -81,3 +81,6 @@ ultimatevocalremovergui-git
 vaping
 vim-railscasts
 zenta-git
+# Issue #20: pingwin840 packages (Remco R., 2026-06-14)
+peksystray
+obd-auto-doctor
