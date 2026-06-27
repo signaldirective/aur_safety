@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import hashlib
+import json
 import os
 import subprocess
 import sys
@@ -8,7 +9,9 @@ import urllib.request
 from pathlib import Path
 
 CONFIG_DIR = Path.home() / ".config" / "aur_safety"
+CONFIG_FILE = CONFIG_DIR / "config.json"
 REPO_BASE = "https://raw.githubusercontent.com/signaldirective/aur_safety/main"
+AUR_HELPERS = ["yay", "pacaur", "paru"]
 
 LIST_FILES = [
     "package_list.txt",
@@ -16,6 +19,49 @@ LIST_FILES = [
     "malicious_npm_packages.txt",
     "malicious_russian_spam_packages.txt",
 ]
+
+RED = "\033[91m"
+GREEN = "\033[92m"
+RESET = "\033[0m"
+
+
+def load_config():
+    if CONFIG_FILE.exists():
+        with open(CONFIG_FILE) as f:
+            return json.load(f)
+    return {}
+
+
+def save_config(cfg):
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(cfg, f, indent=2)
+        f.write("\n")
+
+
+def get_aur_helper():
+    cfg = load_config()
+    helper = cfg.get("aur_helper")
+    if helper:
+        return helper
+
+    print("aur_safety needs to know which AUR helper you use.")
+    for i, h in enumerate(AUR_HELPERS, 1):
+        print(f"  [{i}] {h}")
+    while True:
+        try:
+            choice = input(f"Enter 1-{len(AUR_HELPERS)}: ").strip()
+            idx = int(choice) - 1
+            if 0 <= idx < len(AUR_HELPERS):
+                helper = AUR_HELPERS[idx]
+                break
+        except (ValueError, EOFError, KeyboardInterrupt):
+            pass
+        print("Invalid choice.")
+
+    save_config({"aur_helper": helper})
+    print(f"Using {helper}. Run `aur_safety config` to change it later.\n")
+    return helper
 
 
 def load_bad_packages():
@@ -37,13 +83,9 @@ def strip_aur_prefix(name):
     return name
 
 
-RED = "\033[91m"
-GREEN = "\033[92m"
-RESET = "\033[0m"
-
-
 def cmd_find(args, bad_packages):
-    search_args = ["yay", "-Ss"] + args.query
+    helper = get_aur_helper()
+    search_args = [helper, "-Ss"] + args.query
     proc = subprocess.Popen(search_args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
     for line in proc.stdout:
@@ -62,6 +104,7 @@ def cmd_find(args, bad_packages):
 
 
 def cmd_install(args, bad_packages):
+    helper = get_aur_helper()
     for pkg in args.packages:
         if pkg in bad_packages:
             print(
@@ -78,8 +121,8 @@ def cmd_install(args, bad_packages):
                 print("Cancelled.")
                 sys.exit(1)
 
-    cmd = ["yay", "-S"] + args.packages + args.pass_args
-    os.execvp("yay", cmd)
+    cmd = [helper, "-S"] + args.packages + args.pass_args
+    os.execvp(helper, cmd)
 
 
 def _sha256(data):
@@ -125,25 +168,45 @@ def cmd_update_lists(args, bad_packages):
         print("\nAll lists are up to date.")
 
 
+def cmd_config(args, bad_packages):
+    cfg = load_config()
+    current = cfg.get("aur_helper", "not set")
+
+    if args.helper:
+        if args.helper not in AUR_HELPERS:
+            print(f"Invalid helper. Choose from: {', '.join(AUR_HELPERS)}")
+            sys.exit(1)
+        save_config({"aur_helper": args.helper})
+        print(f"AUR helper set to {args.helper}.")
+    else:
+        print(f"Current AUR helper: {current}")
+        print("Change it with:  aur_safety config <helper>")
+        print(f"Valid helpers:    {', '.join(AUR_HELPERS)}")
+
+
 def main():
     bad_packages = load_bad_packages()
 
     parser = argparse.ArgumentParser(
-        description="yay wrapper that checks packages against known AUR malware lists"
+        description="Wrapper for yay/pacaur/paru that checks packages against known AUR malware lists"
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    find_p = sub.add_parser("find", help="Search AUR (yay -Ss) with safety annotations")
+    find_p = sub.add_parser("find", help="Search AUR with safety annotations")
     find_p.add_argument("query", nargs=argparse.REMAINDER, help="Search terms")
     find_p.set_defaults(func=cmd_find)
 
     install_p = sub.add_parser("install", help="Install AUR packages with safety check")
     install_p.add_argument("packages", nargs="+", help="Package name(s) to install")
-    install_p.add_argument("pass_args", nargs=argparse.REMAINDER, help="Extra args passed to yay -S")
+    install_p.add_argument("pass_args", nargs=argparse.REMAINDER, help="Extra args passed to the AUR helper")
     install_p.set_defaults(func=cmd_install)
 
-    update_p = sub.add_parser("update-lists", help="Update package lists and script from GitHub")
+    update_p = sub.add_parser("update-lists", help="Update package lists from GitHub")
     update_p.set_defaults(func=cmd_update_lists)
+
+    config_p = sub.add_parser("config", help="View or change AUR helper configuration")
+    config_p.add_argument("helper", nargs="?", choices=AUR_HELPERS, help="Set AUR helper")
+    config_p.set_defaults(func=cmd_config)
 
     parsed = parser.parse_args()
     parsed.func(parsed, bad_packages)

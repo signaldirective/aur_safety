@@ -2,15 +2,16 @@
 
 [![aur_safety demo](https://img.youtube.com/vi/15DIgdqSpFM/maxresdefault.jpg)](https://youtu.be/15DIgdqSpFM)
 
-**aur_safety** is a drop-in wrapper for `yay` that annotates search results and blocks dangerous installs by cross-referencing known-compromised AUR packages.
+**aur_safety** is a drop-in wrapper for `yay`, `pacaur`, and `paru` that annotates search results and blocks dangerous installs by cross-referencing known-compromised AUR packages.
 
 It checks every package against multiple curated blocklists sourced from the June 2026 `atomic-lockfile`/`js-digest` supply-chain attack, the 2025 CHAOS RAT campaign, the Russian spam injection campaign, and associated malicious npm dependencies.
 
 ## Features
 
-- **`aur_safety find <search>`** — runs `yay -Ss` and annotates each result with a green `(safe)` or red `(unsafe)` tag
-- **`aur_safety install <package>`** — runs `yay -S` but warns and prompts for confirmation before installing any package on the blocklist (default answer is no)
+- **`aur_safety find <search>`** — runs `<helper> -Ss` and annotates each result with a green `(safe)` or red `(unsafe)` tag
+- **`aur_safety install <package>`** — runs `<helper> -S` but warns and prompts for confirmation before installing any package on the blocklist (default answer is no)
 - **`aur_safety update-lists`** — checks all package lists against the latest versions on GitHub and downloads any updates
+- **`aur_safety config`** — view or change your AUR helper (yay, pacaur, or paru)
 
 ## Install
 
@@ -21,6 +22,8 @@ cd aur_safety
 ```
 
 This copies the blocklists to `~/.config/aur_safety/` and installs the `aur_safety` command to `~/.local/bin/`. Make sure `~/.local/bin/` is in your `PATH`.
+
+On first run, `aur_safety` will ask which AUR helper you use (`yay`, `pacaur`, or `paru`). You can change it later with `aur_safety config <helper>`.
 
 ## Package Lists
 
