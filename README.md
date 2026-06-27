@@ -1,6 +1,6 @@
 # aur_safety
 
-[![aur_safety demo](https://img.youtube.com/vi/15DIgdqSpFM/maxresdefault.jpg)](https://youtu.be/15DIgdqSpFM)
+[![aur_safety demo](https://img.youtube.com/vi//E0i1_9jwNZA/maxresdefault.jpg)](https://youtu.be/E0i1_9jwNZA)
 
 **aur_safety** is a drop-in wrapper for `yay`, `pacaur`, and `paru` that annotates search results and blocks dangerous installs by cross-referencing known-compromised AUR packages.
 
