@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import hashlib
+import os
 import subprocess
 import sys
 import urllib.request
@@ -78,7 +79,7 @@ def cmd_install(args, bad_packages):
                 sys.exit(1)
 
     cmd = ["yay", "-S"] + args.packages + args.pass_args
-    subprocess.execvp("yay", cmd)
+    os.execvp("yay", cmd)
 
 
 def _sha256(data):
