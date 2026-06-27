@@ -8,7 +8,7 @@ It checks every package against multiple curated blocklists sourced from the Jun
 
 ## Features
 
-- **`aur_safety find <search>`** — runs `<helper> -Ss` and annotates each result with a green `(safe)` or red `(unsafe)` tag
+- **`aur_safety find <search>`** — runs `<helper> -Ss` and marks known-bad packages with a red `(unsafe)` tag
 - **`aur_safety install <package>`** — runs `<helper> -S` but warns and prompts for confirmation before installing any package on the blocklist (default answer is no)
 - **`aur_safety update-lists`** — checks all package lists against the latest versions on GitHub and downloads any updates
 - **`aur_safety config`** — view or change your AUR helper (yay, pacaur, or paru)

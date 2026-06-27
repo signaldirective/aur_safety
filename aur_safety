@@ -92,10 +92,10 @@ def cmd_find(args, bad_packages):
         stripped = line.rstrip("\n")
         if stripped.startswith("aur/"):
             pkgname = strip_aur_prefix(stripped.split()[0])
-            unsafe = pkgname in bad_packages
-            color = RED if unsafe else GREEN
-            tag = "unsafe" if unsafe else "safe"
-            print(f"{stripped} ({color}{tag}{RESET})")
+            if pkgname in bad_packages:
+                print(f"{stripped} ({RED}unsafe{RESET})")
+            else:
+                print(stripped)
         else:
             print(stripped)
 
