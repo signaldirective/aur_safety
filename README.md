@@ -4,7 +4,7 @@
 
 **aur_safety** is a drop-in wrapper for `yay`, `pacaur`, and `paru` that annotates search results and blocks dangerous installs by cross-referencing known-compromised AUR packages.
 
-It checks every package against multiple curated blocklists sourced from the June 2026 `atomic-lockfile`/`js-digest` supply-chain attack, the 2025 CHAOS RAT campaign, the Russian spam injection campaign, and associated malicious npm dependencies.
+It checks every package against multiple curated blocklists sourced from the June 2026 `atomic-lockfile`/`js-digest` supply-chain attack, the 2025 CHAOS RAT campaign, the Russian spam injection campaign, the July 2026 ELF dropper / AUR package takeover wave, and associated malicious npm dependencies.
 
 ## Features
 
@@ -33,6 +33,7 @@ On first run, `aur_safety` will ask which AUR helper you use (`yay`, `pacaur`, o
 | `chaos_rat_packages.txt` | 2025 CHAOS RAT trojan campaign |
 | `malicious_npm_packages.txt` | Malicious npm packages used as payload droppers (`atomic-lockfile`, `js-digest`, etc.) |
 | `malicious_russian_spam_packages.txt` | Russian spam injection campaign (~80 packages) |
+| `malicious_elf_dropper_packages.txt` | July 2026 ELF dropper / package takeover wave (~87 packages, sourced from the aur-audit blacklist and AUR mailing list reports) |
 
 Lists are updated as new threats are reported. Pull requests welcome.
 

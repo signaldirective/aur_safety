@@ -1,0 +1,118 @@
+# July 2026 ELF dropper / AUR package takeover campaign
+#
+# A new wave of malicious AUR packages was uploaded starting 2026-07-29,
+# mostly via orphan-package adoption followed by a "Fix source" commit that
+# adds a small (~50KB) malicious ELF binary (named 'validator', 'assembler',
+# 'optimizer', 'converter', 'hasher', 'packer', 'indexer', etc.) and executes
+# it with 'sudo' from the PKGBUILD build() function. The binary contains
+# command-execution (system/execl) and network (socket/connect) capabilities
+# with obfuscated strings, and is intended to run with root privileges.
+#
+# AUR registration and package adoption were disabled by Arch DevOps while
+# the cleanup was handled. Several packages have since been reverted, but the
+# package names are kept here because the malicious commits/accounts may
+# resurface and the names are not safe to trust going forward.
+#
+# Sources:
+# - Saren / Arch Linux CN, aur-audit (wtako.net), black-flagged packages
+#   https://wtako.net/services/aur-audit  (API: https://aur-audit.wtako.net)
+# - AUR report thread, "AUR Malware that still presents as of now",
+#   2026-07-30 (package/ELF-binary pairs)
+#   https://lists.archlinux.org/archives/list/aur-general@lists.archlinux.org/message/P4WIRHTFNH2YZWQHGBAKQWX5YOAFIDLY/
+# - "Malicious ELF executable uploaded to hundreds of AUR packages"
+#   https://lists.archlinux.org/archives/list/aur-general@lists.archlinux.org/thread/BU6RECTA5DTJBL7Q4NQI5T3AKIN2FWSF/
+# - openconnect-sso compromise (dropper in build(), 'validator')
+#   https://github.com/lenucksi/aur-malware-check/issues/52
+# - individual reports: git-pkgs, nnn-nerd, proxypin, meshcore-open-git,
+#   lyrical-git, brave-origin ("translator" ELF), windscribe-cli-v2-bin
+#
+# This is a SEPARATE campaign from the June 2026 atomic-lockfile/js-digest
+# supply-chain attack (package_list.txt) and the Russian spam injection
+# campaign (malicious_russian_spam_packages.txt).
+ajceverywhere-bin
+ampere-git
+android-armv7a-eabi-libxinerama
+android-armv7a-eabi-libxmu
+android-riscv64-libxinerama
+android-riscv64-libxmu
+android-x86-64-libxext
+android-x86-64-libxinerama
+android-x86-libxinerama
+android-x86-libxrandr
+archutil
+autoadb-git
+bigwebapp-manager
+bili-tools
+boringssl-git
+brave-origin
+calendula
+calendula-git
+chandler-bin
+cinnamon-no-nemo
+dcat
+deeploy-bin
+discord-electron-openasar
+duhh
+eden-nightly
+editorconfiger
+extract-otp-secrets
+faustus-git
+firrtl
+funky-git
+garlic-decompiler-gui
+gigolo-git
+git-pkgs
+gitarbor-bin
+glewlwyd
+guarda-bin
+icloudpd
+imago-bin
+instawow-bin
+isleward
+juicebox-plus-git
+khiops-covisualization-bin
+khiops-visualization-bin
+kirill-bin
+lib32-vapoursynth
+libfprint-crfpmoc-git
+lyrical-git
+magic-context-dashboard-bin
+meshcore-open-git
+mimosa
+mingw-w64-libcerf
+nnn-nerd
+noctyra-meta
+noteey-bin
+openconnect-sso
+option-term
+pagerduty-short-circuiter
+pandoc-eisvogel-template
+passhole
+perl-dist-zilla-plugin-minimumperl
+perl-hash-persistent
+polytrack
+portless
+proxypin
+pylnker-git
+python-chatterbot
+python-dlib-cuda-git
+python-google-cloud-monitoring
+python-importlab
+python-libipld-git
+python-numkong
+python-parallax
+python-reals-git
+python-roman-numerals
+python-ultraplot-git
+ramses-git
+read-it-later-git
+solv
+src-cli-bin
+steamidra-bin
+stirling-pdf-desktop-bin
+tuiview
+typora-plugin
+vapoursynth-plugin-soifunc
+vectorchord-immich
+wiki-go
+windscribe-cli-v2-bin

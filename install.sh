@@ -15,6 +15,7 @@ cp "${SCRIPT_DIR}/package_list.txt"       "${CONFIG_DIR}/"
 cp "${SCRIPT_DIR}/chaos_rat_packages.txt" "${CONFIG_DIR}/"
 cp "${SCRIPT_DIR}/malicious_npm_packages.txt"      "${CONFIG_DIR}/"
 cp "${SCRIPT_DIR}/malicious_russian_spam_packages.txt" "${CONFIG_DIR}/"
+cp "${SCRIPT_DIR}/malicious_elf_dropper_packages.txt" "${CONFIG_DIR}/"
 
 echo "  Installing aur_safety to ${BIN_DIR}/"
 cp "${SCRIPT_DIR}/aur_safety" "${BIN_DIR}/aur_safety"

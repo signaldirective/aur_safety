@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 import argparse
+import fcntl
 import hashlib
 import json
 import os
+import pty
+import re
+import struct
 import subprocess
 import sys
+import termios
 import urllib.request
 from pathlib import Path
 
@@ -18,6 +23,7 @@ LIST_FILES = [
     "chaos_rat_packages.txt",
     "malicious_npm_packages.txt",
     "malicious_russian_spam_packages.txt",
+    "malicious_elf_dropper_packages.txt",
 ]
 
 RED = "\033[91m"
@@ -83,24 +89,70 @@ def strip_aur_prefix(name):
     return name
 
 
+ANSI_ESCAPE = re.compile(
+    rb"\x1B(?:\[[0-?]*[ -/]*[@-~]|\][^\x1B\x07]*(?:\x1B\\|\x07)?|[@-_])"
+)
+
+
+def _strip_ansi(line):
+    return ANSI_ESCAPE.sub(b"", line)
+
+
+def _aur_pkgname(line):
+    plain = _strip_ansi(line).decode("utf-8", "replace").strip()
+    if plain.startswith("aur/"):
+        return strip_aur_prefix(plain.split()[0])
+    return None
+
+
+def _copy_winsize(master):
+    try:
+        size = struct.unpack(
+            "HHHH",
+            fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, b"\0" * 8),
+        )
+        fcntl.ioctl(master, termios.TIOCSWINSZ, struct.pack("HHHH", *size))
+    except (OSError, ValueError):
+        pass
+
+
+def _emit_line(line, bad_packages):
+    line = line.rstrip(b"\r")
+    pkgname = _aur_pkgname(line)
+    if pkgname and pkgname in bad_packages:
+        line += f" ({RED}unsafe{RESET})".encode("utf-8")
+    sys.stdout.buffer.write(line + b"\n")
+    sys.stdout.buffer.flush()
+
+
 def cmd_find(args, bad_packages):
     helper = get_aur_helper()
     search_args = [helper, "-Ss"] + args.query
-    proc = subprocess.Popen(search_args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
-    for line in proc.stdout:
-        stripped = line.rstrip("\n")
-        if stripped.startswith("aur/"):
-            pkgname = strip_aur_prefix(stripped.split()[0])
-            if pkgname in bad_packages:
-                print(f"{stripped} ({RED}unsafe{RESET})")
-            else:
-                print(stripped)
-        else:
-            print(stripped)
+    master, slave = pty.openpty()
+    try:
+        _copy_winsize(master)
+        proc = subprocess.Popen(search_args, stdout=slave, stderr=slave)
+    finally:
+        os.close(slave)
 
-    proc.wait()
-    sys.exit(proc.returncode)
+    pending = b""
+    while True:
+        try:
+            chunk = os.read(master, 4096)
+        except OSError:
+            break
+        if not chunk:
+            break
+        pending += chunk
+        while b"\n" in pending:
+            line, pending = pending.split(b"\n", 1)
+            _emit_line(line, bad_packages)
+    if pending:
+        _emit_line(pending, bad_packages)
+    os.close(master)
+
+    sys.exit(proc.wait())
 
 
 def cmd_install(args, bad_packages):
