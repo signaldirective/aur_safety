@@ -1,6 +1,6 @@
 {
-  "version": 1,
-  "updated": "2026-08-02T01:21:02Z",
+  "version": 2,
+  "updated": "2026-08-02T02:09:27Z",
   "files": {
     "package_list.txt": {
       "revision": 1,
@@ -19,8 +19,8 @@
       "sha256": "c14012accbcb6758131304227db20bd48cae6522623711b30b63071c0f33c998"
     },
     "malicious_elf_dropper_packages.txt": {
-      "revision": 1,
-      "sha256": "d00346dbdc36154689a02d259cb5dcf281f678c934e6a17b0ddc379dab651e5f"
+      "revision": 2,
+      "sha256": "4502c60cf00751278fc48bbb74eafed50c649758d34e08c94208234c433574b3"
     }
   }
 }
