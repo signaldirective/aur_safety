@@ -148,11 +148,25 @@ def git(args, check=True):
 
 
 def push_changes(changed_files, manifest):
+    tracked = [*changed_files, "lists.json"]
+
+    # Stash only our modified files so pull --rebase can run on a clean tree.
+    stash = git(
+        ["stash", "push", "-m", "aur-safety-lists", "--", *tracked], check=False
+    )
+    if stash.returncode != 0 and "No local changes" not in (stash.stderr or ""):
+        print(f"  git stash failed:\n{stash.stderr}", file=sys.stderr)
+
     pull = git(["pull", "--rebase", "origin", BRANCH], check=False)
     if pull.returncode != 0:
         print(f"  git pull --rebase failed:\n{pull.stderr}", file=sys.stderr)
 
-    git(["add", *changed_files, "lists.json"])
+    pop = git(["stash", "pop"], check=False)
+    if pop.returncode != 0:
+        print(f"  git stash pop failed (resolve manually):\n{pop.stderr}", file=sys.stderr)
+        return False
+
+    git(["add", *tracked])
     n = len(changed_files)
     git(["commit", "-m", f"lists: update {n} list(s) (revision {manifest['version']})"])
 
