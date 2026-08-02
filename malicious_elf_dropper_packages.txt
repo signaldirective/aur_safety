@@ -1,3 +1,4 @@
+# version: 1
 # July 2026 ELF dropper / AUR package takeover campaign
 #
 # A new wave of malicious AUR packages was uploaded starting 2026-07-29,

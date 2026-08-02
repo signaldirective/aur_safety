@@ -1,0 +1,382 @@
+#!/usr/bin/env python3
+import argparse
+import fcntl
+import hashlib
+import json
+import os
+import pty
+import re
+import struct
+import subprocess
+import sys
+import termios
+import time
+import urllib.request
+from pathlib import Path
+
+CONFIG_DIR = Path.home() / ".config" / "aur_safety"
+CONFIG_FILE = CONFIG_DIR / "config.json"
+REPO_BASE = "https://raw.githubusercontent.com/signaldirective/aur_safety/main"
+AUR_HELPERS = ["yay", "pacaur", "paru"]
+
+MANIFEST_NAME = "lists.json"
+STATE_FILE = CONFIG_DIR / ".update_state.json"
+UPDATE_TTL = int(os.environ.get("AUR_SAFETY_UPDATE_TTL", str(6 * 3600)))
+VERSION_RE = re.compile(r"^#\s*version:\s*(\d+)$")
+
+LIST_FILES = [
+    "package_list.txt",
+    "chaos_rat_packages.txt",
+    "malicious_npm_packages.txt",
+    "malicious_russian_spam_packages.txt",
+    "malicious_elf_dropper_packages.txt",
+]
+
+RED = "\033[91m"
+GREEN = "\033[92m"
+RESET = "\033[0m"
+
+
+def load_config():
+    if CONFIG_FILE.exists():
+        with open(CONFIG_FILE) as f:
+            return json.load(f)
+    return {}
+
+
+def save_config(cfg):
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(cfg, f, indent=2)
+        f.write("\n")
+
+
+def get_aur_helper():
+    cfg = load_config()
+    helper = cfg.get("aur_helper")
+    if helper:
+        return helper
+
+    print("aur_safety needs to know which AUR helper you use.")
+    for i, h in enumerate(AUR_HELPERS, 1):
+        print(f"  [{i}] {h}")
+    while True:
+        try:
+            choice = input(f"Enter 1-{len(AUR_HELPERS)}: ").strip()
+            idx = int(choice) - 1
+            if 0 <= idx < len(AUR_HELPERS):
+                helper = AUR_HELPERS[idx]
+                break
+        except (ValueError, EOFError, KeyboardInterrupt):
+            pass
+        print("Invalid choice.")
+
+    save_config({"aur_helper": helper})
+    print(f"Using {helper}. Run `aur_safety config` to change it later.\n")
+    return helper
+
+
+def load_bad_packages():
+    bad = set()
+    for fname in LIST_FILES:
+        p = CONFIG_DIR / fname
+        if p.exists():
+            with open(p) as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#"):
+                        bad.add(line)
+    return bad
+
+
+def strip_aur_prefix(name):
+    if name.startswith("aur/"):
+        return name[4:]
+    return name
+
+
+ANSI_ESCAPE = re.compile(
+    rb"\x1B(?:\[[0-?]*[ -/]*[@-~]|\][^\x1B\x07]*(?:\x1B\\|\x07)?|[@-_])"
+)
+
+
+def _strip_ansi(line):
+    return ANSI_ESCAPE.sub(b"", line)
+
+
+def _aur_pkgname(line):
+    plain = _strip_ansi(line).decode("utf-8", "replace").strip()
+    if plain.startswith("aur/"):
+        return strip_aur_prefix(plain.split()[0])
+    return None
+
+
+def _copy_winsize(master):
+    try:
+        size = struct.unpack(
+            "HHHH",
+            fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, b"\0" * 8),
+        )
+        fcntl.ioctl(master, termios.TIOCSWINSZ, struct.pack("HHHH", *size))
+    except (OSError, ValueError):
+        pass
+
+
+def _emit_line(line, bad_packages):
+    line = line.rstrip(b"\r")
+    pkgname = _aur_pkgname(line)
+    if pkgname and pkgname in bad_packages:
+        line += f" ({RED}unsafe{RESET})".encode("utf-8")
+    sys.stdout.buffer.write(line + b"\n")
+    sys.stdout.buffer.flush()
+
+
+def cmd_find(args, bad_packages):
+    helper = get_aur_helper()
+    search_args = [helper, "-Ss"] + args.query
+
+    master, slave = pty.openpty()
+    try:
+        _copy_winsize(master)
+        proc = subprocess.Popen(search_args, stdout=slave, stderr=slave)
+    finally:
+        os.close(slave)
+
+    pending = b""
+    while True:
+        try:
+            chunk = os.read(master, 4096)
+        except OSError:
+            break
+        if not chunk:
+            break
+        pending += chunk
+        while b"\n" in pending:
+            line, pending = pending.split(b"\n", 1)
+            _emit_line(line, bad_packages)
+    if pending:
+        _emit_line(pending, bad_packages)
+    os.close(master)
+
+    sys.exit(proc.wait())
+
+
+def cmd_install(args, bad_packages):
+    helper = get_aur_helper()
+    for pkg in args.packages:
+        if pkg in bad_packages:
+            print(
+                f"Package {pkg} is on a list of suspected packages that may be "
+                f"infected with malware. Are you sure you wish to install this package? y/N",
+                end=" ",
+            )
+            sys.stdout.flush()
+            try:
+                resp = input().strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                resp = "n"
+            if resp != "y":
+                print("Cancelled.")
+                sys.exit(1)
+
+    cmd = [helper, "-S"] + args.packages + args.pass_args
+    os.execvp(helper, cmd)
+
+
+def _sha256(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def _download(url):
+    try:
+        with urllib.request.urlopen(url, timeout=15) as r:
+            return r.read()
+    except urllib.error.URLError as e:
+        print(f"  Failed to download {url}: {e}", file=sys.stderr)
+        return None
+
+
+def _load_state():
+    try:
+        with open(STATE_FILE) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_state(state):
+    try:
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        with open(STATE_FILE, "w") as f:
+            json.dump(state, f, indent=2)
+            f.write("\n")
+    except OSError:
+        pass
+
+
+def _atomic_write(path, data):
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_bytes(data)
+    tmp.chmod(0o644)
+    os.replace(tmp, path)
+
+
+def read_local_list_versions():
+    versions = {}
+    for fname in LIST_FILES:
+        p = CONFIG_DIR / fname
+        version = None
+        try:
+            with open(p) as f:
+                for line in f:
+                    m = VERSION_RE.match(line)
+                    if m:
+                        version = int(m.group(1))
+                        break
+        except OSError:
+            version = None
+        versions[fname] = version
+    return versions
+
+
+def fetch_manifest():
+    data = _download(f"{REPO_BASE}/{MANIFEST_NAME}")
+    if data is None:
+        return None
+    try:
+        return json.loads(data.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        return None
+
+
+def check_for_updates(force=False, verbose=False):
+    """Returns 1 if lists were updated, 0 if up to date, -1 if unreachable/failed."""
+    state = _load_state()
+    last_check = state.get("last_check", 0)
+    if not force and (time.time() - last_check) < UPDATE_TTL:
+        if verbose:
+            print("  Lists checked recently, skipping.")
+        return 0
+
+    if verbose:
+        print("  Checking for list updates...", end=" ", flush=True)
+
+    manifest = fetch_manifest()
+    if manifest is None:
+        if verbose:
+            print("SKIP (could not reach GitHub)")
+        else:
+            print("  Could not check for list updates (offline?), using local lists.")
+        _save_state({**state, "last_check": int(time.time())})
+        return -1
+
+    remote_files = manifest.get("files", {})
+    local_versions = read_local_list_versions()
+
+    stale = []
+    for fname in LIST_FILES:
+        meta = remote_files.get(fname)
+        if not meta:
+            continue
+        local_rev = local_versions.get(fname)
+        if local_rev is None or local_rev < meta.get("revision", 0):
+            stale.append(fname)
+
+    if stale:
+        if verbose:
+            print("updating:", ", ".join(stale))
+        updated = 0
+        for fname in stale:
+            meta = remote_files.get(fname, {})
+            data = _download(f"{REPO_BASE}/{fname}")
+            if data is None:
+                continue
+            if meta.get("sha256") and _sha256(data) != meta["sha256"]:
+                print(f"  WARNING: checksum mismatch for {fname}, keeping local copy")
+                continue
+            _atomic_write(CONFIG_DIR / fname, data)
+            updated += 1
+        if updated:
+            print(f"  {updated} package list(s) updated to revision {manifest.get('version')}.")
+            _save_state(
+                {
+                    "last_check": int(time.time()),
+                    "remote_version": manifest.get("version"),
+                }
+            )
+            return 1
+        print("  No lists could be updated (download or checksum failures).")
+        _save_state({**state, "last_check": int(time.time())})
+        return -1
+    else:
+        if verbose:
+            print("up to date")
+        _save_state(
+            {
+                "last_check": int(time.time()),
+                "remote_version": manifest.get("version"),
+            }
+        )
+        return 0
+
+
+def cmd_update_lists(args, bad_packages):
+    status = check_for_updates(force=args.force, verbose=True)
+    if status == 1:
+        print("\nPackage lists updated. Run `aur_safety_api update-lists --force` again to verify.")
+    elif status == -1:
+        print("\nCould not reach GitHub; lists were left unchanged.")
+    else:
+        print("\nAll lists are up to date.")
+
+
+def cmd_config(args, bad_packages):
+    cfg = load_config()
+    current = cfg.get("aur_helper", "not set")
+
+    if args.helper:
+        if args.helper not in AUR_HELPERS:
+            print(f"Invalid helper. Choose from: {', '.join(AUR_HELPERS)}")
+            sys.exit(1)
+        save_config({"aur_helper": args.helper})
+        print(f"AUR helper set to {args.helper}.")
+    else:
+        print(f"Current AUR helper: {current}")
+        print("Change it with:  aur_safety config <helper>")
+        print(f"Valid helpers:    {', '.join(AUR_HELPERS)}")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Wrapper for yay/pacaur/paru that checks packages against known AUR malware lists"
+    )
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    find_p = sub.add_parser("find", help="Search AUR with safety annotations")
+    find_p.add_argument("query", nargs=argparse.REMAINDER, help="Search terms")
+    find_p.set_defaults(func=cmd_find)
+
+    install_p = sub.add_parser("install", help="Install AUR packages with safety check")
+    install_p.add_argument("packages", nargs="+", help="Package name(s) to install")
+    install_p.add_argument("pass_args", nargs=argparse.REMAINDER, help="Extra args passed to the AUR helper")
+    install_p.set_defaults(func=cmd_install)
+
+    update_p = sub.add_parser("update-lists", help="Update package lists from GitHub")
+    update_p.add_argument("--force", action="store_true", help="Bypass the update-check cooldown")
+    update_p.set_defaults(func=cmd_update_lists)
+
+    config_p = sub.add_parser("config", help="View or change AUR helper configuration")
+    config_p.add_argument("helper", nargs="?", choices=AUR_HELPERS, help="Set AUR helper")
+    config_p.set_defaults(func=cmd_config)
+
+    parsed = parser.parse_args()
+
+    if parsed.command != "update-lists":
+        check_for_updates()
+
+    bad_packages = load_bad_packages()
+    parsed.func(parsed, bad_packages)
+
+
+if __name__ == "__main__":
+    main()

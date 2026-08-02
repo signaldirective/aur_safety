@@ -1,3 +1,4 @@
+# version: 1
 123pan-bin
 1code
 8188eu-dkms

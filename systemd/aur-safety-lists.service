@@ -1,0 +1,11 @@
+[Unit]
+Description=aur_safety malicious package list collector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=GIT_SSH_COMMAND=ssh -i %h/.ssh/aur_safety_deploy -o IdentitiesOnly=yes
+Environment=AUR_SAFETY_PUSH_URL=git@github.com:signaldirective/aur_safety.git
+WorkingDirectory=__REPO_DIR__
+ExecStart=/usr/bin/python3 __REPO_DIR__/tools/update_lists.py

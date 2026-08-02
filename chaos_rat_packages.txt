@@ -1,3 +1,4 @@
+# version: 1
 librewolf-fix-bin
 firefox-patch-bin
 zen-browser-patched-bin

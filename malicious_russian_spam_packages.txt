@@ -1,3 +1,4 @@
+# version: 1
 # Russian Spam Campaign — AUR packages injecting spam into shell configs
 # Source: Sid Karunaratne, AUR REPORT THREAD, 2026-06-14
 # https://lists.archlinux.org/archives/list/aur-general@lists.archlinux.org/message/2YQSHTC27MOKDDKHZTH2BJGTEN2CYC7W/

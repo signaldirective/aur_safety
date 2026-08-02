@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "updated": "2026-08-02T01:21:02Z",
+  "files": {
+    "package_list.txt": {
+      "revision": 1,
+      "sha256": "1dd1631621d13214fbbaae53c4653d27121e35c9e2182f5c6c2fcd4fe1d69305"
+    },
+    "chaos_rat_packages.txt": {
+      "revision": 1,
+      "sha256": "ac65d4ed143da68f4767b919a63dc46400f12802ea29ff4d03a8933724b4438d"
+    },
+    "malicious_npm_packages.txt": {
+      "revision": 1,
+      "sha256": "c0f2d14cee7c5dfeef2568e18dd23707fec8d2778ab63a367ad3baa0fbaae45f"
+    },
+    "malicious_russian_spam_packages.txt": {
+      "revision": 1,
+      "sha256": "c14012accbcb6758131304227db20bd48cae6522623711b30b63071c0f33c998"
+    },
+    "malicious_elf_dropper_packages.txt": {
+      "revision": 1,
+      "sha256": "d00346dbdc36154689a02d259cb5dcf281f678c934e6a17b0ddc379dab651e5f"
+    }
+  }
+}
