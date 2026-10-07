@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """aur_safety malicious-package list collector.
 
-Polls machine-readable sources, merges confirmed ("black") package names into
-the campaign lists, bumps the per-file `# version: N` header, regenerates
-`lists.json`, and pushes the result to GitHub so that aur_safety_api clients
-self-update.
+Polls machine-readable sources, checks the latest analysis for each package,
+adds flagged package names, and removes entries whose current scan is clean.
+Entries without a current analysis are retained conservatively. The collector
+bumps the per-file `# version: N` header, regenerates `lists.json`, and pushes
+the result to GitHub so that aur_safety_api clients self-update.
 
 Run it periodically (see systemd/aur-safety-lists.timer). It is safe to run
-unattended: sources are unioned into the existing lists (nothing is ever
-removed), and git operations use `pull --rebase` before pushing.
+unattended: only a current `scanned` result with no black, red, or yellow flags
+can remove an existing entry, and git operations use `pull --rebase` before
+pushing.
 
 Exit codes:
   0 - success (or nothing to do)
@@ -26,6 +28,7 @@ import time
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import quote
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BRANCH = "main"
@@ -75,6 +78,39 @@ def fetch_source_names(src):
         else:
             break
     return names
+
+
+def fetch_latest_analysis(names):
+    """Return the latest aur-audit result for each requested package name."""
+    results = {}
+    names = sorted(set(names))
+    for start in range(0, len(names), 200):
+        batch = names[start : start + 200]
+        if not batch:
+            continue
+        url = "https://aur-audit.wtako.net/package-analysis?names=" + quote(
+            ",".join(batch), safe=""
+        )
+        data = fetch_json(url)
+        results.update(data.get("packages", {}))
+    return results
+
+
+def has_flags(result):
+    if not result:
+        return False
+    return any(
+        result.get(field)
+        for field in ("blackFlags", "redFlags", "yellowFlags")
+    )
+
+
+def is_currently_clear(result):
+    return (
+        result
+        and result.get("status") == "scanned"
+        and not has_flags(result)
+    )
 
 
 def load_list(path):
@@ -210,18 +246,37 @@ def main():
 
         target = REPO_ROOT / src["target"]
         header, entries, version = load_list(target)
-        new_names = set(names) - entries
+        try:
+            analysis = fetch_latest_analysis(entries | names)
+        except Exception as e:
+            print(
+                f"  ERROR: failed to fetch latest analysis for {src['name']}: {e}",
+                file=sys.stderr,
+            )
+            had_source_error = True
+            continue
 
-        if not new_names:
+        cleared = {
+            name for name, result in analysis.items() if is_currently_clear(result)
+        }
+        flagged = {
+            name for name, result in analysis.items() if has_flags(result)
+        }
+        updated_entries = (entries - cleared) | flagged
+        new_names = updated_entries - entries
+        removed_names = entries - updated_entries
+
+        if not new_names and not removed_names:
             print(f"  {src['target']}: up to date ({len(entries)} packages)")
             continue
 
         new_version = version + 1
-        entries |= set(names)
+        entries = updated_entries
         if not args.dry_run:
             save_list(target, header, entries, new_version)
         print(
-            f"  {src['target']}: +{len(new_names)} new -> revision {new_version} "
+            f"  {src['target']}: +{len(new_names)} new, -{len(removed_names)} cleared "
+            f"-> revision {new_version} "
             f"({len(entries)} total)"
         )
         changed.append(src["target"])
@@ -235,11 +290,7 @@ def main():
         return 1 if had_source_error else 0
 
     manifest = regenerate_manifest()
-    if not args.skip_git:
-        if not args.dry_run:
-            (REPO_ROOT / "lists.json").write_text(
-                json.dumps(manifest, indent=2) + "\n"
-            )
+    (REPO_ROOT / "lists.json").write_text(json.dumps(manifest, indent=2) + "\n")
 
     if args.skip_git:
         print("Lists updated on disk (lists.json regenerated).")

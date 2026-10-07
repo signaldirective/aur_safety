@@ -19,7 +19,7 @@ It checks every package against multiple curated blocklists sourced from the Jun
 
 - Each list file carries a `# version: N` header; the repo's tiny `lists.json` manifest records every list's current revision + sha256.
 - On every `find`/`install` (at most once per 6h — override with `AUR_SAFETY_UPDATE_TTL`, in seconds), `aur_safety_api` downloads `lists.json`, compares revisions against the local headers, and silently updates any stale lists. If GitHub is unreachable it falls back to the local lists and continues.
-- The lists themselves are maintained by a collector service (`tools/update_lists.py`, scheduled via the provided systemd timer) that polls the aur-audit API for confirmed-malicious packages, merges them into the blocklists, bumps the versions, and pushes to GitHub.
+- The lists themselves are maintained by a collector service (`tools/update_lists.py`, scheduled via the provided systemd timer) that polls the aur-audit API, adds flagged packages, removes entries whose current scan is clean, bumps the versions, and pushes to GitHub. Entries without a current analysis are retained conservatively.
 
 Install it alongside the classic version (it does not overwrite `aur_safety`):
 
@@ -54,9 +54,9 @@ On first run, `aur_safety` will ask which AUR helper you use (`yay`, `pacaur`, o
 | `chaos_rat_packages.txt` | 2025 CHAOS RAT trojan campaign |
 | `malicious_npm_packages.txt` | Malicious npm packages used as payload droppers (`atomic-lockfile`, `js-digest`, etc.) |
 | `malicious_russian_spam_packages.txt` | Russian spam injection campaign (~80 packages) |
-| `malicious_elf_dropper_packages.txt` | July 2026 ELF dropper / package takeover wave (~87 packages, sourced from the aur-audit blacklist and AUR mailing list reports) |
+| `malicious_elf_dropper_packages.txt` | July 2026 ELF dropper / package takeover wave (85 current entries, sourced from aur-audit and AUR mailing list reports) |
 
-Lists are updated as new threats are reported. Pull requests welcome.
+Lists are updated as new threats are reported. Entries are removed only after a current audit reports no black, red, or yellow findings; packages without a current analysis remain blocked until manually reviewed. Pull requests welcome.
 
 ## License
 
